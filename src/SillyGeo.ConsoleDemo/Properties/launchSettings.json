@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SillyGeo.ConsoleDemo": {
+      "commandName": "SillyGeo.ConsoleDemo",
+      "sdkVersion": "dnx-coreclr-win-x86.1.0.0-beta7"
+    }
+  }
+}
