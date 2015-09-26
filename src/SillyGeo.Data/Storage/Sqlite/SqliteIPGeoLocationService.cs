@@ -1,4 +1,5 @@
-﻿using SillyGeo.Infrastructure;
+﻿using SillyGeo.Data.Storage.Sqlite.Models;
+using SillyGeo.Infrastructure;
 using SillyGeo.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
@@ -12,14 +13,32 @@ namespace SillyGeo.Data.Storage.Sqlite
     {
         private readonly IGeoNamesService _geoNamesService;
 
-        public SqliteIPGeoLocationService(IGeoNamesService geoNamesService)
+        private readonly DbHelper _dbHelper;
+
+        public SqliteIPGeoLocationService(string connectionString, IGeoNamesService geoNamesService)
         {
+            _dbHelper = new DbHelper(connectionString);
             _geoNamesService = geoNamesService;
         }
 
-        public async Task<IPRangeInfo> LocateAsync(IPAddress ip)
+        public async Task<IEnumerable<IPRangeInfo>> LocateAsync(IPAddress ip)
         {
-            return null;
+            var flatIP = new FlatIPAddress(ip);
+            return await _dbHelper.ExecuteReaderAsync(dataReader =>
+            {
+                return new IPRangeInfo
+                {
+                    IPRange = new IPRange
+                    {
+                        Start = new FlatIPAddress { Low = (long)dataReader["StartLow"], High = (long)dataReader["StartHigh"] }.ToIPAddress(),
+                        End = new FlatIPAddress { Low = (long)dataReader["EndLow"], High = (long)dataReader["EndHigh"] }.ToIPAddress(),
+                    },
+                };
+            }, @"
+SELECT * FROM IPRangeInfos 
+WHERE (StartHigh < {1} OR (StartHigh = {1} AND StartLow <= {0})
+AND (EndHigh > {1} OR (EndHigh = {1} AND EndLow >= {0});", 
+flatIP.Low, flatIP.High);
         }
 
     }

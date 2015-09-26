@@ -28,8 +28,8 @@ namespace SillyGeo.Data.Providers
 
         public Task<IEnumerable<IPRangeLocation>> GetIPRangeLocationsAsync(Stream rangesStream, Stream citiesStream)
         {
-            var citiesLocationsDict = ParseCitiesLocations(rangesStream);
-            return ParseIPRangesAsync(citiesStream, citiesLocationsDict);
+            var citiesLocationsDict = ParseCitiesLocations(citiesStream);
+            return ParseIPRangesAsync(rangesStream, citiesLocationsDict);
         }
 
         private static Dictionary<int, CityLocation> ParseCitiesLocations(Stream stream)

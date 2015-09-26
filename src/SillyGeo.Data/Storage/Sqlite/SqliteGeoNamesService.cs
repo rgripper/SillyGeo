@@ -60,44 +60,38 @@ namespace SillyGeo.Data.Storage.Sqlite
                 .Where(x => x != null));
         }
 
+        private IDictionary<string, Country> _countries = null; // TODO: improve
+
         public async Task<Country> GetCountryAsync(string code)
         {
-            var results = await _dbHelper.ExecuteReaderAsync(
-                CreateCountry,
-                @"SELECT * FROM Areas WHERE Code={0} LIMIT 1;",
-                code).ConfigureAwait(false);
+            if (_countries == null)
+            {
+                _countries = (await _dbHelper.ExecuteReaderAsync(
+                    CreateCountry,
+                    @"SELECT * FROM Areas WHERE Kind={0} LIMIT 1;",
+                    AreaKind.Country).ConfigureAwait(false)).ToDictionary(x => x.Code);
+            }
 
-            return results.SingleOrDefault();
+            Country country = null;
+            _countries.TryGetValue(code, out country);
+            return country;
         }
 
         public async Task<PopulatedPlace> GetNearestPopulatedPlaceAsync(Coordinates coordinates)
         {
-            var distance = 0.3;
-            var query = await _dbHelper.ExecuteReaderAsync(CreatePopulatedPlace, @"
-                SELECT *
+            var distance = 300;
+            var results = await _dbHelper.ExecuteReaderAsync(CreatePopulatedPlace, $@"
+                SELECT *, X(Coordinates) AS Latitude, Y(Coordinates) AS Longitude
                 FROM Areas
-                WHERE ST_Distance(Coordinates, MakePoint({0}, {1})) < {2}
-                LIMIT 1;", coordinates.Latitude, coordinates.Longitude, distance);
+                WHERE Kind={{0}} AND ST_Distance(Coordinates, {_dbHelper.PointParameterCall(1 , 2)}) < {{3}}
+                LIMIT 1;", AreaKind.PopulatedPlace, coordinates.Latitude, coordinates.Longitude, distance);
 
-            if (coordinates == null)
-            {
-                throw new ArgumentNullException("coordinates");
-            }
-
-            return new PopulatedPlace { Name = "Test" };// TODO
+            return results.SingleOrDefault();// TODO
         }
-
-        //private static U GetValue<T, U>(IDictionary<T, U> dict, T key)
-        //    where U : class
-        //{
-        //    U val;
-        //    dict.TryGetValue(key, out val);
-        //    return val;
-        //}
 
         private void FillArea(DbDataReader dataReader, Area area)
         {
-            area.Id = (int)dataReader["Id"];
+            area.Id = Convert.ToInt32(dataReader["Id"]);
             area.Name = (string)dataReader["Name"];
             var namesByCultures = (string)dataReader["NamesByCultures"];
             if (namesByCultures != null)
@@ -111,13 +105,23 @@ namespace SillyGeo.Data.Storage.Sqlite
             var populatedPlace = new PopulatedPlace
             {
                 Coordinates = new Coordinates { Latitude = (double)dataReader["Latitude"], Longitude = (double)dataReader["Longitude"] },
-                CountryId = (int)dataReader["CountryId"],
-                AdminAreaLevel1Id = (int)dataReader["AdminAreaLevel1Id"],
-                AdminAreaLevel2Id = (int)dataReader["AdminAreaLevel2Id"]
+                CountryId = Convert.ToInt32(dataReader["CountryId"]),
+                AdminAreaLevel1Id = ConvertToNullableInt32(dataReader["AdminAreaLevel1Id"]),
+                AdminAreaLevel2Id = ConvertToNullableInt32(dataReader["AdminAreaLevel2Id"])
             };
 
             FillArea(dataReader, populatedPlace);
             return populatedPlace;
+        }
+
+        private int? ConvertToNullableInt32(object value)
+        {
+            if (value == DBNull.Value)
+            {
+                return null;
+            }
+
+            return Convert.ToInt32(value);
         }
 
         private Country CreateCountry(DbDataReader dataReader)

@@ -13,38 +13,31 @@ namespace SillyGeo.Data.Providers
 {
     public class MaxMindCitiesCsv2Provider 
     {
-        private readonly IGeoNamesService GeoNamesService;
+        private readonly IGeoNamesService _geoNamesService;
 
-        //private int _recordCount;
-
-        //private int _currentCount = 0;
-
-        private Stream _csvStream;
-
-        public MaxMindCitiesCsv2Provider(Stream csvStream, IGeoNamesService geoNamesService)
+        public MaxMindCitiesCsv2Provider(IGeoNamesService geoNamesService)
         {
-            GeoNamesService = geoNamesService;
-            _csvStream = csvStream;
+            _geoNamesService = geoNamesService;
         }
         
-        public async Task<IEnumerable<IPRangeLocation>> GetIPRangeLocationsAsync()
+        public IEnumerable<IPRangeLocation> GetIPRangeLocations(Stream csvStream)
         {
             List<IPRangeLocation> locations = new List<IPRangeLocation>();
-            using (var reader = new StreamReader(_csvStream))
+            using (var reader = new StreamReader(csvStream))
             {
                 while (!reader.EndOfStream)
                 {
                     var line = reader.ReadLine();
+                    if (line.StartsWith("network_start_ip")) continue; // header
                     var parts = line.Split(',');
                     if (string.IsNullOrEmpty(parts[3])) continue;
-                    var location = await ParseLocationAsync(parts).ConfigureAwait(false);
-                    locations.Add(location);
+                    locations.Add(ParseLocation(parts));
                 }
             }
             return locations;
         }
 
-        private async Task<IPRangeLocation> ParseLocationAsync(string[] parts)
+        private IPRangeLocation ParseLocation(string[] parts)
         {
             var item = new
             {
@@ -61,11 +54,14 @@ namespace SillyGeo.Data.Providers
                     }
             };
 
+            if (!item.IsCountryOnly && item.Coordinates == null)
+            {
+                throw new Exception("Coordinates are missing");
+            }
+
             return new IPRangeLocation
             {
-                Coordinates = item.IsCountryOnly 
-                    ? null 
-                    : await GetPopulatedPlaceCoordinatesAsync(item.GeonameId) ?? item.Coordinates,
+                Coordinates = item.Coordinates,
                 IPRange = new IPRange
                 {
                     Start = item.IPAddress.MapToIPv4(),
@@ -73,22 +69,6 @@ namespace SillyGeo.Data.Providers
                 },
                 AreaId = item.GeonameId ?? item.RegisteredCountryGeonameId
             };
-        }
-
-        private async Task<Coordinates> GetPopulatedPlaceCoordinatesAsync(int? geoNameId)
-        {
-            //_currentCount++;
-            //Console.Write("\rProcessed: {0:0.00}%", (_currentCount / (double)_recordCount) * 100);
-            if (geoNameId.HasValue)
-            {
-                var place = (PopulatedPlace)await GeoNamesService.GetAreaAsync(geoNameId.Value).ConfigureAwait(false);
-                if (place != null)
-                {
-                    return place.Coordinates;
-                }
-            }
-
-            return null;
         }
 
         private static IPAddress GetEndAddress(IPAddress startAddress, int networkPrefixLength)

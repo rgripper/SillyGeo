@@ -10,6 +10,11 @@ namespace SillyGeo.Data.Storage.Sqlite.Models
 
         public long Low { get; set; }
 
+        public FlatIPAddress()
+        {
+
+        }
+
         public FlatIPAddress(IPAddress value)
         {
             var revBytes = value.GetAddressBytes().Reverse().ToArray();

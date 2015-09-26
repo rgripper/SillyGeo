@@ -1,44 +1,49 @@
 ﻿using Newtonsoft.Json;
 using SillyGeo.Data.Storage.Sqlite.Models;
 using SillyGeo.Infrastructure;
-using SillyGeo.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace SillyGeo.Data.Storage.Sqlite
 {
-    public class DatabaseManager
+    public class DatabaseManager : IDatabaseManager
     {
         private readonly DbHelper _dbHelper;
+
+        private readonly int _batchLength = 1000;
 
         public DatabaseManager(string connectionString)
         {
             _dbHelper = new DbHelper(connectionString);
         }
 
-        public async Task AddIPRangesLocationRangeAsync(IEnumerable<IPRangeLocation> ipRangeLocations)
+        public async Task AddIPRangesLocationRangeAsync(IEnumerable<IPRangeLocation> ipRangeLocations, IProgress<int> progress)
         {
-            foreach (var item in ipRangeLocations)
+            var queries = ipRangeLocations.Select(item =>
             {
                 var startIP = new FlatIPAddress(item.IPRange.Start);
                 var endIP = new FlatIPAddress(item.IPRange.End);
-                await _dbHelper.ExecuteNonQueryAsync(@"
-                    INSERT INTO Areas (AreaId, StartLow, StartHigh, EndLow, EndHigh) 
-                    VALUES ({0}, {1}, {2}, {3}, {4}, {5});",
-                    item.AreaId, startIP.Low, startIP.High, endIP.Low, endIP.High).ConfigureAwait(false);
-            }
+                return new KeyValuePair<string, object[]>(@"
+                    INSERT INTO IPRangeInfos (AreaId, StartLow, StartHigh, EndLow, EndHigh) 
+                    VALUES ({0}, {1}, {2}, {3}, {4});",
+                    new object[] { item.AreaId, startIP.Low, startIP.High, endIP.Low, endIP.High });
+            }).ToList();
+            await _dbHelper.ExecuteBatchAsync(queries, _batchLength, progress).ConfigureAwait(false);
         }
 
-        public async Task ClearAsync()
+        public async Task ClearAreasAsync()
         {
             await _dbHelper.ExecuteNonQueryAsync("DELETE FROM Areas;").ConfigureAwait(false);
+        }
+
+        public async Task ClearIPRangesAsync()
+        {
             await _dbHelper.ExecuteNonQueryAsync("DELETE FROM IPRangeInfos;").ConfigureAwait(false);
         }
 
-        public async Task AddAreaRangeAsync(IEnumerable<Area> areas)
+        public async Task AddAreaRangeAsync(IEnumerable<Area> areas, IProgress<int> progress)
         {
             if (areas == null)
             {
@@ -79,15 +84,19 @@ namespace SillyGeo.Data.Storage.Sqlite
                 return parameters;
             });
 
-            foreach (var parameters in entitiesParameters)
+            var queries = entitiesParameters.Select(parameters =>
             {
                 var paramNames = string.Join(",", parameters.Select(x => x.Key));
                 var paramValues = parameters.Select(x => x.Value).ToArray();
                 var paramIndexes = string.Join(",", Enumerable.Range(0, parameters.Count).Select(x => "{" + x + "}"));
 
                 var paramValuesPlaceholders = string.Join(",", Enumerable.Range(0, parameters.Count));
-                await _dbHelper.ExecuteNonQueryAsync($"INSERT INTO Areas ({paramNames}) VALUES ({paramIndexes});", paramValues).ConfigureAwait(false);
-            }
+                return new KeyValuePair<string, object[]>($"INSERT INTO Areas ({paramNames}) VALUES ({paramIndexes});", paramValues);
+            }).ToList();
+
+            await _dbHelper.ExecuteNonQueryAsync("PRAGMA journal_mode = OFF");
+            await _dbHelper.ExecuteBatchAsync(queries, _batchLength, progress).ConfigureAwait(false);
+            await _dbHelper.ExecuteNonQueryAsync("PRAGMA journal_mode = NORMAL");
         }
 
         public async Task CreateDatabaseIfNotExistsAsync()
@@ -105,7 +114,9 @@ CREATE TABLE IF NOT EXISTS Areas (
     AdminAreaLevel2Id INTEGER,
     CountryId INTEGER
 );
+CREATE INDEX IX_Area_Kind ON Areas (Kind);
 SELECT AddGeometryColumn('Areas', 'Coordinates', 4326, 'POINT', 'XY');
+SELECT CreateSpatialIndex('Areas', 'Coordinates');
 ").ConfigureAwait(false);
 
                 await _dbHelper.ExecuteNonQueryAsync(@"

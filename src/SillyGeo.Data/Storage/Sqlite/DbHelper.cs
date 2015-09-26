@@ -14,17 +14,25 @@ namespace SillyGeo.Data.Storage.Sqlite
     {
         private readonly string _connectionString;
 
+        private readonly int _srid;
+
         [DllImport("sqlite3", EntryPoint = "sqlite3_enable_load_extension", CallingConvention = CallingConvention.Cdecl)]
         private static extern int EnableLoadExtension(IntPtr db, int onoff);
 
-        public DbHelper(string connectionString)
+        public DbHelper(string connectionString, int srid = 4326)
         {
             _connectionString = connectionString;
+            _srid = srid;
         }
 
-        private string PointParameterCall(int latIndex, int lonIndex)
+        public string PointParameterCall(int latIndex, int lonIndex)
         {
-            return $"MAKEPOINT({latIndex}, {lonIndex})";
+            return $"MAKEPOINT({{{latIndex}}}, {{{lonIndex}}}, {_srid})";
+        }
+
+        private string PointRawParameterCall(string latName, string lonName, int srid)
+        {
+            return $"MAKEPOINT({latName}, {lonName}, {srid})";
         }
 
         public async Task<int> ExecuteNonQueryAsync(string query, params object[] parameters)
@@ -33,6 +41,20 @@ namespace SillyGeo.Data.Storage.Sqlite
             {
                 var command = CreateCommand(connection, query, parameters);
                 return await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+        }
+
+        public async Task ExecuteBatchAsync(IEnumerable<KeyValuePair<string, object[]>> queries)
+        {
+            using (DbConnection connection = OpenConnection())
+            {
+                await CreateCommand(connection, "BEGIN TRANSACTION", new object[0]).ExecuteNonQueryAsync().ConfigureAwait(false);
+                foreach (var item in queries)
+                {
+                    var command = CreateCommand(connection, item.Key, item.Value);
+                    await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+                }
+                await CreateCommand(connection, "END TRANSACTION", new object[0]).ExecuteNonQueryAsync().ConfigureAwait(false);
             }
         }
 
@@ -91,10 +113,11 @@ namespace SillyGeo.Data.Storage.Sqlite
                 var coordinates = parameterValue as Coordinates;
                 if (coordinates != null)
                 {
-                    parametersCalls.Add(PointParameterCall(i, i + 1));
-                    command.Parameters.Add(new SqliteParameter("@p" + i, coordinates.Latitude));
-                    command.Parameters.Add(new SqliteParameter("@p" + i + 1, coordinates.Longitude));
-                    i++;
+                    var latName = $"@p{i}_lat";
+                    var lonName = $"@p{i}_lon";
+                    parametersCalls.Add(PointRawParameterCall(latName, lonName, _srid));
+                    command.Parameters.Add(new SqliteParameter(latName, coordinates.Latitude));
+                    command.Parameters.Add(new SqliteParameter(lonName, coordinates.Longitude));
                 }
                 else
                 {
@@ -108,6 +131,28 @@ namespace SillyGeo.Data.Storage.Sqlite
 
             command.CommandText = string.Format(query, parametersCalls.ToArray());
             return command;
+        }
+    }
+
+    internal static class DbHelperExtensions
+    {
+        public static async Task ExecuteBatchAsync(this DbHelper helper, IEnumerable<KeyValuePair<string, object[]>> queries, int count, IProgress<int> progress)
+        {
+            int i = 0;
+            foreach (var item in Batch(queries, count))
+            {
+                i += item.Count();
+                await helper.ExecuteBatchAsync(item).ConfigureAwait(false);
+                progress?.Report(i);
+            }
+        }
+
+        private static IEnumerable<IEnumerable<T>> Batch<T>(IEnumerable<T> items,
+                                                   int maxItems)
+        {
+            return items.Select((item, inx) => new { item, inx })
+                        .GroupBy(x => x.inx / maxItems)
+                        .Select(g => g.Select(x => x.item));
         }
     }
 }
