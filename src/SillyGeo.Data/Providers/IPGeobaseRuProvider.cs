@@ -98,7 +98,7 @@ namespace SillyGeo.Data.Providers
 
             if (areaId == null)
             {
-                return null; // do not allow ipranges with undetermined location
+                return null; // do not allow ip ranges with undetermined location
             }
 
             return new IPRangeLocation

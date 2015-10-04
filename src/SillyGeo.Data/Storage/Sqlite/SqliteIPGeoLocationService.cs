@@ -1,4 +1,5 @@
-﻿using SillyGeo.Data.Storage.Sqlite.Models;
+﻿using Microsoft.Data.Sqlite;
+using SillyGeo.Data.Storage.Sqlite.Models;
 using SillyGeo.Infrastructure;
 using SillyGeo.Infrastructure.Services;
 using System;
@@ -11,34 +12,35 @@ namespace SillyGeo.Data.Storage.Sqlite
 {
     public class SqliteIPGeoLocationService : IIPGeoLocationService
     {
-        private readonly IGeoNamesService _geoNamesService;
+        private readonly string _connectionString;
 
-        private readonly DbHelper _dbHelper;
-
-        public SqliteIPGeoLocationService(string connectionString, IGeoNamesService geoNamesService)
+        public SqliteIPGeoLocationService(string connectionString)
         {
-            _dbHelper = new DbHelper(connectionString);
-            _geoNamesService = geoNamesService;
+            _connectionString = connectionString;
         }
 
         public async Task<IEnumerable<IPRangeInfo>> LocateAsync(IPAddress ip)
         {
             var flatIP = new FlatIPAddress(ip);
-            return await _dbHelper.ExecuteReaderAsync(dataReader =>
+            using (var connection = new SqliteConnection(_connectionString))
             {
-                return new IPRangeInfo
+                connection.Open();
+                return await connection.ExecuteReaderAsync(dataReader =>
                 {
-                    IPRange = new IPRange
+                    return new IPRangeInfo
                     {
-                        Start = new FlatIPAddress { Low = (long)dataReader["StartLow"], High = (long)dataReader["StartHigh"] }.ToIPAddress(),
-                        End = new FlatIPAddress { Low = (long)dataReader["EndLow"], High = (long)dataReader["EndHigh"] }.ToIPAddress(),
-                    },
-                };
-            }, @"
-SELECT * FROM IPRangeInfos 
-WHERE (StartHigh < {1} OR (StartHigh = {1} AND StartLow <= {0})
-AND (EndHigh > {1} OR (EndHigh = {1} AND EndLow >= {0});", 
-flatIP.Low, flatIP.High);
+                        IPRange = new IPRange
+                        {
+                            Start = new FlatIPAddress { Low = (long)dataReader["StartLow"], High = (long)dataReader["StartHigh"] }.ToIPAddress(),
+                            End = new FlatIPAddress { Low = (long)dataReader["EndLow"], High = (long)dataReader["EndHigh"] }.ToIPAddress(),
+                        },
+                    };
+                }, @"
+                    SELECT * FROM IPRangeInfos 
+                    WHERE (StartHigh < {1} OR (StartHigh = {1} AND StartLow <= {0})
+                    AND (EndHigh > {1} OR (EndHigh = {1} AND EndLow >= {0});",
+                flatIP.Low, flatIP.High);
+            }
         }
 
     }

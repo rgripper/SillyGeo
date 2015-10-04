@@ -13,6 +13,7 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace SillyGeo.ConsoleDemo
 {
@@ -44,11 +45,12 @@ namespace SillyGeo.ConsoleDemo
                 var geoNamesService = new SqliteGeoNamesService(connectionString);
                 var databaseManager = new DatabaseManager(connectionString);
 
-                var geoLocationService = new SqliteIPGeoLocationService(connectionString, geoNamesService);
+                var geoLocationService = new SqliteIPGeoLocationService(connectionString);
 
+                await databaseManager.DropDatabaseAsync();
                 await databaseManager.CreateDatabaseIfNotExistsAsync();
-                await databaseManager.ClearAreasAsync();
-                await databaseManager.ClearIPRangesAsync();
+                //await databaseManager.ClearAreasAsync();
+                //await databaseManager.ClearIPRangesAsync();
 
                 var geoNamesReader = new GeoNamesReader();
                 //geoNamesReader.ExtractLocalizedNames("Content/GeoNames/alternateNames.txt", "Content/GeoNames/alternateNames.txt_en.txt", "en");
@@ -57,8 +59,19 @@ namespace SillyGeo.ConsoleDemo
                     admin1Path: "Content/GeoNames/admin1CodesASCII.txt", admin2Path: "Content/GeoNames/admin2Codes.txt",
                     citiesPath: "Content/GeoNames/cities15000.txt", contriesPath: "Content/GeoNames/countryInfo.txt");
 
+                int areaProgressCount = 0;
                 var areaCount = areas.Count();
-                await databaseManager.AddAreaRangeAsync(areas, new Progress<int>(x => Console.Write("\r{0}/{1} areas were added", x, areaCount)));
+
+                // temp workaround until https://github.com/aspnet/Microsoft.Data.Sqlite/pull/127 arrives
+                Func<string, string> replaceNonAscii = x => Regex.Replace(x, @"[^\u0020-\u007E]", string.Empty);
+                foreach (var area in areas)
+                {
+                    foreach (var key in area.NamesByCultures.Keys.ToList())
+                    {
+                        area.NamesByCultures[key] = replaceNonAscii(area.NamesByCultures[key]);
+                    }
+                }
+                await databaseManager.AddAreaRangeAsync(areas, new Progress<int>(x => Console.Write("\r{0}/{1} areas were added", areaProgressCount += x, areaCount)));
                 Console.WriteLine();
                 var ipGeobaseRuProvider = new IPGeobaseRuProvider(geoNamesService);
 
@@ -82,7 +95,8 @@ namespace SillyGeo.ConsoleDemo
                 Console.WriteLine();
                 Console.WriteLine("{0} locations were read", locationCount);
 
-                await databaseManager.AddIPRangesLocationRangeAsync(locations, new Progress<int>(x => Console.Write("\r{0}/{1} locations were added", x, locationCount)));
+                int locationProgressCount = 0;
+                await databaseManager.AddIPRangesLocationRangeAsync(locations, new Progress<int>(x => Console.Write("\r{0}/{1} locations were added", locationProgressCount += x, locationCount)));
                 Console.WriteLine();
 
                 var location = await geoLocationService.LocateAsync(IPAddress.Parse("137.116.229.81"));

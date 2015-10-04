@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Microsoft.Data.Sqlite;
+using Newtonsoft.Json;
 using SillyGeo.Data.Storage.Sqlite.Models;
 using SillyGeo.Infrastructure;
 using SillyGeo.Infrastructure.Services;
@@ -12,33 +13,39 @@ namespace SillyGeo.Data.Storage.Sqlite
 {
     public class SqliteGeoNamesService : IGeoNamesService
     {
-        private readonly DbHelper _dbHelper;
+        private readonly string _connectionString;
+
+        private readonly string _spatialiteExtensionName = "mod_spatialite.dll";
 
         public SqliteGeoNamesService(string connectionString)
         {
-            _dbHelper = new DbHelper(connectionString);
+            _connectionString = connectionString;
         }
 
         public async Task<Area> GetAreaAsync(int id)
         {
-            var results = await _dbHelper.ExecuteReaderAsync(dataReader =>
+            using (var connection = new SqliteConnection(_connectionString))
             {
-                var areaKind = (AreaKind)dataReader["Kind"];
-                switch (areaKind)
+                connection.Open();
+                var results = await connection.ExecuteReaderAsync(dataReader =>
                 {
-                    case AreaKind.Country:
-                        return CreateCountry(dataReader);
-                    case AreaKind.AdminArea:
-                        return CreateAdminArea(dataReader);
-                    case AreaKind.PopulatedPlace:
-                        return CreatePopulatedPlace(dataReader);
-                    default:
-                        throw new NotSupportedException();
-                }
-            },
-            @"SELECT * FROM Areas WHERE Id={0} LIMIT 1;", id).ConfigureAwait(false);
+                    var areaKind = (AreaKind)dataReader["Kind"];
+                    switch (areaKind)
+                    {
+                        case AreaKind.Country:
+                            return CreateCountry(dataReader);
+                        case AreaKind.AdminArea:
+                            return CreateAdminArea(dataReader);
+                        case AreaKind.PopulatedPlace:
+                            return CreatePopulatedPlace(dataReader);
+                        default:
+                            throw new NotSupportedException();
+                    }
+                },
+                @"SELECT * FROM Areas WHERE Id={0} LIMIT 1;", id).ConfigureAwait(false);
 
-            return results.SingleOrDefault();
+                return results.SingleOrDefault();
+            }
         }
 
         public async Task<string> GetPopulatedPlaceAddressAsync(int id, string cultureName)
@@ -66,27 +73,40 @@ namespace SillyGeo.Data.Storage.Sqlite
         {
             if (_countries == null)
             {
-                _countries = (await _dbHelper.ExecuteReaderAsync(
-                    CreateCountry,
-                    @"SELECT * FROM Areas WHERE Kind={0} LIMIT 1;",
-                    AreaKind.Country).ConfigureAwait(false)).ToDictionary(x => x.Code);
+                using (var connection = new SqliteConnection(_connectionString))
+                {
+                    connection.Open();
+                    _countries = (await connection.ExecuteReaderAsync(
+                            CreateCountry,
+                            @"SELECT * FROM Areas WHERE Kind={0} LIMIT 1;",
+                            AreaKind.Country).ConfigureAwait(false))
+                        .ToDictionary(x => x.Code);
+                }
             }
-
             Country country = null;
             _countries.TryGetValue(code, out country);
             return country;
+
         }
 
         public async Task<PopulatedPlace> GetNearestPopulatedPlaceAsync(Coordinates coordinates)
         {
-            var distance = 300;
-            var results = await _dbHelper.ExecuteReaderAsync(CreatePopulatedPlace, $@"
-                SELECT *, X(Coordinates) AS Latitude, Y(Coordinates) AS Longitude
-                FROM Areas
-                WHERE Kind={{0}} AND ST_Distance(Coordinates, {_dbHelper.PointParameterCall(1 , 2)}) < {{3}}
-                LIMIT 1;", AreaKind.PopulatedPlace, coordinates.Latitude, coordinates.Longitude, distance);
+            using (var connection = new SqliteConnection(_connectionString))
+            {
+                connection.Open();
+                connection.LoadExtension(_spatialiteExtensionName);
 
-            return results.SingleOrDefault();// TODO
+                var distance = 0.3;
+                var results = await connection.ExecuteReaderAsync(
+                    CreatePopulatedPlace, @"
+                        SELECT *, X(Coordinates) AS Latitude, Y(Coordinates) AS Longitude
+                        FROM Areas
+                        WHERE Kind={0} AND ST_Distance(Coordinates, MAKEPOINT({1} , {2}, 4326)) < {3}
+                        LIMIT 1;",
+                    AreaKind.PopulatedPlace, coordinates.Latitude, coordinates.Longitude, distance);
+
+                return results.SingleOrDefault();// TODO
+            }
         }
 
         private void FillArea(DbDataReader dataReader, Area area)
