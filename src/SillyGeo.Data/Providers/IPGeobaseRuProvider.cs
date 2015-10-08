@@ -26,10 +26,10 @@ namespace SillyGeo.Data.Providers
             _geoNamesService = geoNamesService;
         }
 
-        public Task<IEnumerable<IPRangeLocation>> GetIPRangeLocationsAsync(Stream rangesStream, Stream citiesStream)
+        public Task<IEnumerable<IPRangeLocation>> GetIPRangeLocationsAsync(Stream rangesStream, Stream citiesStream, IProgress<int> progress = null)
         {
             var citiesLocationsDict = ParseCitiesLocations(citiesStream);
-            return ParseIPRangesAsync(rangesStream, citiesLocationsDict);
+            return ParseIPRangesAsync(rangesStream, citiesLocationsDict, progress);
         }
 
         private static Dictionary<int, CityLocation> ParseCitiesLocations(Stream stream)
@@ -60,7 +60,7 @@ namespace SillyGeo.Data.Providers
             };
         }
 
-        private async Task<IEnumerable<IPRangeLocation>> ParseIPRangesAsync(Stream stream, Dictionary<int, CityLocation> citiesLocationsDict)
+        private async Task<IEnumerable<IPRangeLocation>> ParseIPRangesAsync(Stream stream, Dictionary<int, CityLocation> citiesLocationsDict, IProgress<int> progress)
         {
             List<IPRangeLocation> locations = new List<IPRangeLocation>();
             using (var reader = new StreamReader(stream))
@@ -68,7 +68,11 @@ namespace SillyGeo.Data.Providers
                 while (!reader.EndOfStream)
                 {
                     var range = await ParseIPRangeAsync(reader.ReadLine(), citiesLocationsDict);
-                    locations.Add(range);
+                    if (range != null)
+                    {
+                        locations.Add(range);
+                        progress?.Report(1);
+                    }
                 }
             }
             return locations;

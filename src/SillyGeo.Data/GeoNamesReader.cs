@@ -9,36 +9,44 @@ namespace SillyGeo.Data
 {
     public class GeoNamesReader
     {
+        private class AdminAreaInfo
+        {
+            public int Id { get; set; }
+
+            public string Name { get; set; }
+
+            public string Code { get; set; }
+
+            public string CountryCode { get; set; }
+        }
+
         public IEnumerable<Area> ReadAreas(string localizedNamesPath, 
             string admin1Path, string admin2Path, string citiesPath, string contriesPath)
         {
             var localizedNames = ReadLocalizedNames(localizedNamesPath);
 
-            var admin1IdsByCodes = ReadAdminIdsByCodes(admin1Path);
-            var admin2IdsByCodes = ReadAdminIdsByCodes(admin2Path);
-
-            var admin1NamesByIds = ReadAdminNamesByIds(admin1Path);
-            var admin2NamesByIds = ReadAdminNamesByIds(admin2Path);
-
-            var adminAreas = admin1NamesByIds.Concat(admin2NamesByIds)
-                .Select(x => new Area 
-                { 
-                    Id = x.Key, 
-                    Name = x.Value, 
-                    NamesByCultures = GetValue(localizedNames, x.Key) ?? new Dictionary<string, string>() 
-                })
-                .ToList();
-
             var countries = ReadCountries(contriesPath, localizedNames);
-            var countriesByCodes = countries.ToDictionary(x => x.Code, x => x.Id);
+            var countryIdsByCodes = countries.ToDictionary(x => x.Code, x => x.Id);
 
-            var cities = ReadCities(citiesPath, localizedNames, countriesByCodes, admin1IdsByCodes, admin2IdsByCodes);
+            var admin1IdsByCodes = ReadAdminAreaInfosByCodes(admin1Path);
+            var admin2IdsByCodes = ReadAdminAreaInfosByCodes(admin2Path);
 
-            return countries.Concat(adminAreas).Concat(cities);
+            var adminAreas = admin1IdsByCodes.Values.Concat(admin2IdsByCodes.Values)
+                .Select(x => new AdminArea 
+                { 
+                    Id = x.Id, 
+                    Name = x.Name, 
+                    NamesByCultures = GetValue(localizedNames, x.Id) ?? new Dictionary<string, string>(),
+                    CountryId = countryIdsByCodes[x.CountryCode]
+                });
+
+            var cities = ReadCities(citiesPath, localizedNames, countryIdsByCodes, admin1IdsByCodes, admin2IdsByCodes);
+
+            return countries.Concat<Area>(adminAreas).Concat(cities);
         }
 
-        private IEnumerable<PopulatedPlace> ReadCities(string path, Dictionary<int, Dictionary<string, string>> localizedNamesByIds,
-            Dictionary<string, int> countriesByCodes, Dictionary<string, int> admin1IdsByCodes, Dictionary<string, int> admin2IdsByCodes)
+        private IEnumerable<PopulatedPlace> ReadCities(string path, IDictionary<int, Dictionary<string, string>> localizedNamesByIds,
+            IDictionary<string, int> countriesByCodes, IDictionary<string, AdminAreaInfo> admin1IdsByCodes, IDictionary<string, AdminAreaInfo> admin2IdsByCodes)
         {
             Func<int, IEnumerable<string>, Dictionary<string, string>> getLocalizedNames = (id, alternateNames) =>
             {
@@ -71,21 +79,21 @@ namespace SillyGeo.Data
                         Longitude = double.Parse(parts[5], CultureInfo.InvariantCulture)
                     },
                     NamesByCultures = getLocalizedNames(id, alternateNames),
-                    AdminAreaLevel1Id = GetIdByCode(admin1IdsByCodes, adm1Code),
-                    AdminAreaLevel2Id = GetIdByCode(admin2IdsByCodes, adm2Code)
+                    AdminAreaLevel1Id = GetValue(admin1IdsByCodes, adm1Code)?.Id,
+                    AdminAreaLevel2Id = GetValue(admin2IdsByCodes, adm2Code)?.Id
                 };
 
             return results.ToList();
         }
 
-        private Dictionary<string, int> ReadAdminIdsByCodes(string path)
+        private IDictionary<string, AdminAreaInfo> ReadAdminAreaInfosByCodes(string path)
         {
-            return File.ReadLines(path).Select(x => x.Split('\t')).ToDictionary(x => x[0], x => int.Parse(x[3]));
-        }
+            var results =
+                from line in File.ReadLines(path)
+                let parts = line.Split('\t')
+                select new AdminAreaInfo { Id = int.Parse(parts[3]), Code = parts[0], Name = parts[1], CountryCode = parts[0].Split('.')[0] };
 
-        private Dictionary<int, string> ReadAdminNamesByIds(string path)
-        {
-            return File.ReadLines(path).Select(x => x.Split('\t')).ToDictionary(x => int.Parse(x[3]), x => x[1]);
+            return results.ToDictionary(x => x.Code);
         }
 
         private IEnumerable<Country> ReadCountries(string path, Dictionary<int, Dictionary<string, string>> localizedNamesByIds)
@@ -138,14 +146,6 @@ namespace SillyGeo.Data
                     byPlaceId => byPlaceId
                         .GroupBy(x => x.locale)
                         .ToDictionary(g => g.Key, g => g.First().name)); // можно улучшить, выбирая не первое, а то, что совпадает с локализованными в списке городов
-        }
-
-        private static int? GetIdByCode(IDictionary<string, int> dict, string key)
-        {
-            int val;
-            if (dict.TryGetValue(key, out val))
-                return val;
-            return null;
         }
 
         private static U GetValue<T, U>(IDictionary<T, U> dict, T key) where U : class

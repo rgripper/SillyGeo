@@ -47,60 +47,62 @@ namespace SillyGeo.ConsoleDemo
 
                 var geoLocationService = new SqliteIPGeoLocationService(connectionString);
 
-                await databaseManager.DropDatabaseAsync();
-                await databaseManager.CreateDatabaseIfNotExistsAsync();
+                //await databaseManager.DropDatabaseAsync();
+                //await databaseManager.CreateDatabaseIfNotExistsAsync();
                 //await databaseManager.ClearAreasAsync();
-                //await databaseManager.ClearIPRangesAsync();
+                await databaseManager.ClearIPRangesAsync();
 
-                var geoNamesReader = new GeoNamesReader();
-                //geoNamesReader.ExtractLocalizedNames("Content/GeoNames/alternateNames.txt", "Content/GeoNames/alternateNames.txt_en.txt", "en");
-                var areas = geoNamesReader.ReadAreas(
-                    localizedNamesPath: "Content/GeoNames/alternateNames.txt_en.txt",
-                    admin1Path: "Content/GeoNames/admin1CodesASCII.txt", admin2Path: "Content/GeoNames/admin2Codes.txt",
-                    citiesPath: "Content/GeoNames/cities15000.txt", contriesPath: "Content/GeoNames/countryInfo.txt");
+                //var geoNamesReader = new GeoNamesReader();
+                ////geoNamesReader.ExtractLocalizedNames("Content/GeoNames/alternateNames.txt", "Content/GeoNames/alternateNames.txt_en.txt", "en");
+                //var areas = geoNamesReader.ReadAreas(
+                //    localizedNamesPath: "Content/GeoNames/alternateNames.txt_en.txt",
+                //    admin1Path: "Content/GeoNames/admin1CodesASCII.txt", admin2Path: "Content/GeoNames/admin2Codes.txt",
+                //    citiesPath: "Content/GeoNames/cities15000.txt", contriesPath: "Content/GeoNames/countryInfo.txt");
 
-                int areaProgressCount = 0;
-                var areaCount = areas.Count();
+                //int areaProgressCount = 0;
+                //var areaCount = areas.Count();
 
-                // temp workaround until https://github.com/aspnet/Microsoft.Data.Sqlite/pull/127 arrives
-                Func<string, string> replaceNonAscii = x => Regex.Replace(x, @"[^\u0020-\u007E]", string.Empty);
-                foreach (var area in areas)
-                {
-                    foreach (var key in area.NamesByCultures.Keys.ToList())
-                    {
-                        area.NamesByCultures[key] = replaceNonAscii(area.NamesByCultures[key]);
-                    }
-                }
-                await databaseManager.AddAreaRangeAsync(areas, new Progress<int>(x => Console.Write("\r{0}/{1} areas were added", areaProgressCount += x, areaCount)));
-                Console.WriteLine();
+                //// temp workaround until https://github.com/aspnet/Microsoft.Data.Sqlite/pull/127 arrives
+                //Func<string, string> replaceNonAscii = x => Regex.Replace(x, @"[^\u0020-\u007E]", string.Empty);
+                //foreach (var area in areas)
+                //{
+                //    foreach (var key in area.NamesByCultures.Keys.ToList())
+                //    {
+                //        area.NamesByCultures[key] = replaceNonAscii(area.NamesByCultures[key]);
+                //    }
+                //}
+                //await databaseManager.AddAreaRangeAsync(areas, new Progress<int>(x => Console.Write("\r{0}/{1} areas were added", areaProgressCount += x, areaCount)));
+                //Console.WriteLine();
                 var ipGeobaseRuProvider = new IPGeobaseRuProvider(geoNamesService);
 
-                IEnumerable<IPRangeLocation> locations;
+                IEnumerable<IPRangeLocation> locations1, locations2;
 
+                int locationProgressCount = 0;
+                var locationProgress = new Progress<int>(x => Console.Write("\r{0} locations were added", locationProgressCount += x));
                 using (Stream cidrStream = File.OpenRead("Content/ProviderData/IPGeobaseRu/cidr_optim.txt"),
                     citiesStream = File.OpenRead("Content/ProviderData/IPGeobaseRu/cities.txt"))
                 {
-                    locations = await ipGeobaseRuProvider.GetIPRangeLocationsAsync(cidrStream, citiesStream);
+                    locations1 = await ipGeobaseRuProvider.GetIPRangeLocationsAsync(cidrStream, citiesStream, locationProgress);
                 }
 
                 //var maxMindCitiesCsv2Provider = new MaxMindCitiesCsv2Provider(geoNamesService);
 
                 //using (var stream = File.OpenRead("Content/ProviderData/MaxMindCitiesCsv2/GeoLite2-City-Blocks.csv"))
                 //{
-                //    locations = maxMindCitiesCsv2Provider.GetIPRangeLocations(stream);
+                //    locations2 = maxMindCitiesCsv2Provider.GetIPRangeLocations(stream);
                 //}
 
+                var locations = locations1;//.Concat(locations2).ToList();
                 var locationCount = locations.Count();
 
-                Console.WriteLine();
-                Console.WriteLine("{0} locations were read", locationCount);
+                //Console.WriteLine();
+                //Console.WriteLine("{0} locations were read", locationCount);
 
-                int locationProgressCount = 0;
-                await databaseManager.AddIPRangesLocationRangeAsync(locations, new Progress<int>(x => Console.Write("\r{0}/{1} locations were added", locationProgressCount += x, locationCount)));
+                await databaseManager.AddIPRangesLocationRangeAsync(locations);
                 Console.WriteLine();
 
-                var location = await geoLocationService.LocateAsync(IPAddress.Parse("137.116.229.81"));
-                Console.WriteLine(JsonConvert.SerializeObject(location));
+                var location = await geoLocationService.LocateAsync(IPAddress.Parse("137.108.1.1"));
+                Console.WriteLine(location == null ? null : JsonConvert.SerializeObject(location));
             }
             catch (AggregateException aggr)
             {
