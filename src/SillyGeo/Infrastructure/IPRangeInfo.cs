@@ -4,10 +4,8 @@
     {
         public IPRange IPRange { get; set; }
 
-        public Country Country { get; set; }
+        public int AreaId { get; set; }
 
-        public PopulatedPlace PopulatedPlace { get; set; }
-
-        public Provider Provider { get; set; }
+        public int ProviderId { get; set; }
     }
 }

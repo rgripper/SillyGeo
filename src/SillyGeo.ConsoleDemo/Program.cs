@@ -47,32 +47,32 @@ namespace SillyGeo.ConsoleDemo
 
                 var geoLocationService = new SqliteIPGeoLocationService(connectionString);
 
-                //await databaseManager.DropDatabaseAsync();
-                //await databaseManager.CreateDatabaseIfNotExistsAsync();
-                //await databaseManager.ClearAreasAsync();
+                await databaseManager.DropDatabaseAsync();
+                await databaseManager.CreateDatabaseIfNotExistsAsync();
+                await databaseManager.ClearAreasAsync();
                 await databaseManager.ClearIPRangesAsync();
 
-                //var geoNamesReader = new GeoNamesReader();
-                ////geoNamesReader.ExtractLocalizedNames("Content/GeoNames/alternateNames.txt", "Content/GeoNames/alternateNames.txt_en.txt", "en");
-                //var areas = geoNamesReader.ReadAreas(
-                //    localizedNamesPath: "Content/GeoNames/alternateNames.txt_en.txt",
-                //    admin1Path: "Content/GeoNames/admin1CodesASCII.txt", admin2Path: "Content/GeoNames/admin2Codes.txt",
-                //    citiesPath: "Content/GeoNames/cities15000.txt", contriesPath: "Content/GeoNames/countryInfo.txt");
+                var geoNamesReader = new GeoNamesReader();
+                //geoNamesReader.ExtractLocalizedNames("Content/GeoNames/alternateNames.txt", "Content/GeoNames/alternateNames.txt_en.txt", "en");
+                var areas = geoNamesReader.ReadAreas(
+                    localizedNamesPath: "Content/GeoNames/alternateNames.txt_en.txt",
+                    admin1Path: "Content/GeoNames/admin1CodesASCII.txt", admin2Path: "Content/GeoNames/admin2Codes.txt",
+                    citiesPath: "Content/GeoNames/cities15000.txt", contriesPath: "Content/GeoNames/countryInfo.txt");
 
-                //int areaProgressCount = 0;
-                //var areaCount = areas.Count();
+                int areaProgressCount = 0;
+                var areaCount = areas.Count();
 
-                //// temp workaround until https://github.com/aspnet/Microsoft.Data.Sqlite/pull/127 arrives
-                //Func<string, string> replaceNonAscii = x => Regex.Replace(x, @"[^\u0020-\u007E]", string.Empty);
-                //foreach (var area in areas)
-                //{
-                //    foreach (var key in area.NamesByCultures.Keys.ToList())
-                //    {
-                //        area.NamesByCultures[key] = replaceNonAscii(area.NamesByCultures[key]);
-                //    }
-                //}
-                //await databaseManager.AddAreaRangeAsync(areas, new Progress<int>(x => Console.Write("\r{0}/{1} areas were added", areaProgressCount += x, areaCount)));
-                //Console.WriteLine();
+                // temp workaround until https://github.com/aspnet/Microsoft.Data.Sqlite/pull/127 arrives
+                Func<string, string> replaceNonAscii = x => Regex.Replace(x, @"[^\u0020-\u007E]", string.Empty);
+                foreach (var area in areas)
+                {
+                    foreach (var key in area.NamesByCultures.Keys.ToList())
+                    {
+                        area.NamesByCultures[key] = replaceNonAscii(area.NamesByCultures[key]);
+                    }
+                }
+                await databaseManager.AddAreaRangeAsync(areas, new Progress<int>(x => Console.Write("\r{0}/{1} areas were added", areaProgressCount += x, areaCount)));
+                Console.WriteLine();
                 var ipGeobaseRuProvider = new IPGeobaseRuProvider(geoNamesService);
 
                 IEnumerable<IPRangeLocation> locations1, locations2;
@@ -95,14 +95,16 @@ namespace SillyGeo.ConsoleDemo
                 var locations = locations1;//.Concat(locations2).ToList();
                 var locationCount = locations.Count();
 
-                //Console.WriteLine();
-                //Console.WriteLine("{0} locations were read", locationCount);
+                Console.WriteLine();
+                Console.WriteLine("{0} locations were read", locationCount);
 
-                await databaseManager.AddIPRangesLocationRangeAsync(locations);
+                await databaseManager.AddIPRangesLocationRangeAsync(typeof(IPGeobaseRuProvider).FullName, locations.Take(100));
+                await databaseManager.AddIPRangesLocationRangeAsync(typeof(IPGeobaseRuProvider).FullName, locations.Skip(100));
                 Console.WriteLine();
 
-                var location = await geoLocationService.LocateAsync(IPAddress.Parse("137.108.1.1"));
-                Console.WriteLine(location == null ? null : JsonConvert.SerializeObject(location));
+                var rangeLocations = await geoLocationService.LocateAsync(IPAddress.Parse("137.108.1.1"));
+                Console.WriteLine(JsonConvert.SerializeObject(
+                    rangeLocations.Select(x =>new { Start = x.IPRange.Start.ToString(), End = x.IPRange.End.ToString(), x.ProviderId, x.AreaId })).ToString());
             }
             catch (AggregateException aggr)
             {

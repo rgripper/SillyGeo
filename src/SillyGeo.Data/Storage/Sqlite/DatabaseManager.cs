@@ -116,25 +116,32 @@ namespace SillyGeo.Data.Storage.Sqlite
             }
         }
 
-        public async Task AddIPRangesLocationRangeAsync(IEnumerable<IPRangeLocation> ipRangeLocations, IProgress<int> progress = null)
+        public async Task AddIPRangesLocationRangeAsync(string providerName, IEnumerable<IPRangeLocation> ipRangeLocations, IProgress<int> progress = null)
         {
             if (ipRangeLocations == null)
             {
                 throw new ArgumentNullException(nameof(ipRangeLocations));
             }
 
+            var providerId = await GetProviderId(providerName);
             var query = @"
-                    INSERT INTO IPRangeInfos (AreaId, StartLow, StartHigh, EndLow, EndHigh, Value) 
+                    INSERT INTO IPRangeInfos (AreaId, ProviderId, StartLow, StartHigh, EndLow, EndHigh) 
                     VALUES ({0}, {1}, {2}, {3}, {4}, {5});";
             var parameterSeries = ipRangeLocations.Select(item =>
             {
                 var startIP = new FlatIPAddress(item.IPRange.Start);
                 var endIP = new FlatIPAddress(item.IPRange.End);
-                return new object[] { item.AreaId, startIP.Low, startIP.High, endIP.Low, endIP.High,
-                    startIP.ToIPAddress().ToString() + " - " + endIP.ToIPAddress().ToString() };
+                return new object[] { item.AreaId, providerId, startIP.Low, startIP.High, endIP.Low, endIP.High };
             });
 
             await _connection.Value.ExecuteBatchWithoutJournalAsync(query, parameterSeries, _batchLength, progress).ConfigureAwait(false);
+        }
+
+        private async Task<int> GetProviderId(string providerName)
+        {
+            return Convert.ToInt32(await _connection.Value.ExecuteScalarAsync(@"
+                INSERT OR IGNORE INTO IPRangeProviders (Name) VALUES ({0});
+                SELECT Id FROM IPRangeProviders WHERE Name = {0};", providerName));
         }
 
         public async Task CreateDatabaseIfNotExistsAsync()
@@ -161,6 +168,12 @@ namespace SillyGeo.Data.Storage.Sqlite
         {
             await connection.CreateCommand("BEGIN; SELECT InitSpatialMetaData(); COMMIT;").ExecuteNonQueryAsync();
             await connection.ExecuteNonQueryAsync(@"
+                CREATE TABLE IF NOT EXISTS IPRangeProviders (
+                    Id INTEGER NOT NULL PRIMARY KEY ASC,
+                    Name TEXT NOT NULL
+                );
+            ").ConfigureAwait(false);
+            await connection.ExecuteNonQueryAsync(@"
                 CREATE TABLE IF NOT EXISTS Areas (
                     Id INTEGER NOT NULL PRIMARY KEY ASC, 
                     Name TEXT NOT NULL, 
@@ -179,11 +192,11 @@ namespace SillyGeo.Data.Storage.Sqlite
             await connection.ExecuteNonQueryAsync(@"
                 CREATE TABLE IF NOT EXISTS IPRangeInfos (
                     AreaId INTEGER NOT NULL,
+                    ProviderId INTEGER NOT NULL,
                     StartLow INTEGER NOT NULL,
                     StartHigh INTEGER,
                     EndLow INTEGER NOT NULL,
-                    EndHigh INTEGER,
-                    Value TEXT
+                    EndHigh INTEGER
                 );
                 ").ConfigureAwait(false);
         }

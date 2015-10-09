@@ -58,6 +58,13 @@ namespace SillyGeo.Data.Storage
             return results;
         }
 
+        public static async Task<object> ExecuteScalarAsync(this DbConnection connection, string query, params object[] parameters)
+        {
+            var command = connection.CreateCommand(query);
+            command.ResetParameters(parameters);
+            return await command.ExecuteScalarAsync();
+        }
+
         private static void ResetParameters(this DbCommand command, object[] parameters)
         {
             command.Parameters.Clear();

@@ -40,6 +40,8 @@ namespace SillyGeo.Data.Storage.Sqlite
                             Start = new FlatIPAddress { Low = (long)dataReader["StartLow"], High = null }.ToIPAddress(),
                             End = new FlatIPAddress { Low = (long)dataReader["EndLow"], High = null }.ToIPAddress(),
                         },
+                        AreaId = Convert.ToInt32(dataReader["AreaId"]),
+                        ProviderId = Convert.ToInt32(dataReader["ProviderId"]),
                     };
                 }, @"
                     SELECT * FROM IPRangeInfos 
@@ -63,6 +65,8 @@ namespace SillyGeo.Data.Storage.Sqlite
                             Start = new FlatIPAddress { Low = (long)dataReader["StartLow"], High = (long)dataReader["StartHigh"] }.ToIPAddress(),
                             End = new FlatIPAddress { Low = (long)dataReader["EndLow"], High = (long)dataReader["EndHigh"] }.ToIPAddress(),
                         },
+                        AreaId = Convert.ToInt32(dataReader["AreaId"]),
+                        ProviderId = Convert.ToInt32(dataReader["ProviderId"]),
                     };
                 }, @"
                     SELECT * FROM IPRangeInfos 

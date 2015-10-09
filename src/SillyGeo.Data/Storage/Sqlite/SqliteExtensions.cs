@@ -1,7 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -44,6 +43,16 @@ namespace SillyGeo.Data.Storage.Sqlite
                 await connection.ExecuteBatchWithoutJournalAsync(query, batchedParameterSeries).ConfigureAwait(false);
                 progress?.Report(batchedParameterSeries.Count());
             }
+        }
+
+        public static int? ConvertToNullableInt32(object value)
+        {
+            if (value == DBNull.Value)
+            {
+                return null;
+            }
+
+            return Convert.ToInt32(value);
         }
 
         private static async Task ExecuteBatchWithoutJournalAsync(this SqliteConnection connection, string query, IEnumerable<object[]> parameterSeries)

@@ -80,8 +80,8 @@ namespace SillyGeo.Data.Storage.Sqlite
             {
                 _countries = (await _connection.Value.ExecuteReaderAsync(
                         CreateCountry,
-                        @"SELECT * FROM Areas WHERE Kind={0} AND Code={1} LIMIT 1;",
-                        AreaKind.Country, code).ConfigureAwait(false))
+                        @"SELECT * FROM Areas WHERE Kind={0};",
+                        AreaKind.Country).ConfigureAwait(false))
                     .ToDictionary(x => x.Code);
             }
             Country country = null;
@@ -126,22 +126,12 @@ namespace SillyGeo.Data.Storage.Sqlite
             {
                 Coordinates = new Coordinates { Latitude = (double)dataReader["Latitude"], Longitude = (double)dataReader["Longitude"] },
                 CountryId = Convert.ToInt32(dataReader["CountryId"]),
-                AdminAreaLevel1Id = ConvertToNullableInt32(dataReader["AdminAreaLevel1Id"]),
-                AdminAreaLevel2Id = ConvertToNullableInt32(dataReader["AdminAreaLevel2Id"])
+                AdminAreaLevel1Id = SqliteExtensions.ConvertToNullableInt32(dataReader["AdminAreaLevel1Id"]),
+                AdminAreaLevel2Id = SqliteExtensions.ConvertToNullableInt32(dataReader["AdminAreaLevel2Id"])
             };
 
             FillArea(dataReader, populatedPlace);
             return populatedPlace;
-        }
-
-        private int? ConvertToNullableInt32(object value)
-        {
-            if (value == DBNull.Value)
-            {
-                return null;
-            }
-
-            return Convert.ToInt32(value);
         }
 
         private Country CreateCountry(DbDataReader dataReader)
