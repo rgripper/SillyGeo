@@ -1,8 +1,9 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 
 namespace SillyGeo.Infrastructure.Services
 {
-    public interface IGeoLocationService
+    public interface IGeoLocationService : IDisposable
     {
         Task<PopulatedPlace> GetNearestPopulatedPlaceAsync(Coordinates coordinates);
     }

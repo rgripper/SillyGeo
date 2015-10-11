@@ -43,14 +43,14 @@ namespace SillyGeo.ConsoleDemo
             {
                 var connectionString = _config["Data:DefaultConnection:ConnectionString"];
                 var geoNamesService = new SqliteGeoNamesService(connectionString);
-                var databaseManager = new DatabaseManager(connectionString);
+                var databaseManager = new SqliteImportService(connectionString);
 
                 var geoLocationService = new SqliteIPGeoLocationService(connectionString);
 
-                await databaseManager.DropDatabaseAsync();
-                await databaseManager.CreateDatabaseIfNotExistsAsync();
+                await databaseManager.RemoveAsync();
+                await databaseManager.CreateIfNotExistsAsync();
                 await databaseManager.ClearAreasAsync();
-                await databaseManager.ClearIPRangesAsync();
+                await databaseManager.ClearIPRangeLocationsAsync();
 
                 var geoNamesReader = new GeoNamesReader();
                 //geoNamesReader.ExtractLocalizedNames("Content/GeoNames/alternateNames.txt", "Content/GeoNames/alternateNames.txt_en.txt", "en");
@@ -98,8 +98,8 @@ namespace SillyGeo.ConsoleDemo
                 Console.WriteLine();
                 Console.WriteLine("{0} locations were read", locationCount);
 
-                await databaseManager.AddIPRangesLocationRangeAsync(typeof(IPGeobaseRuProvider).FullName, locations.Take(100));
-                await databaseManager.AddIPRangesLocationRangeAsync(typeof(IPGeobaseRuProvider).FullName, locations.Skip(100));
+                await databaseManager.AddIPRangeLocationRangeAsync(typeof(IPGeobaseRuProvider).FullName, locations.Take(100));
+                await databaseManager.AddIPRangeLocationRangeAsync(typeof(IPGeobaseRuProvider).FullName, locations.Skip(100));
                 Console.WriteLine();
 
                 var rangeLocations = await geoLocationService.LocateAsync(IPAddress.Parse("137.108.1.1"));

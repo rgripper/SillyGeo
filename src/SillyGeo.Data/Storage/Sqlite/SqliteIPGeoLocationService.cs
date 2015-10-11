@@ -75,5 +75,9 @@ namespace SillyGeo.Data.Storage.Sqlite
                 flatIP.Low, flatIP.High);
             }
         }
+
+        public void Dispose()
+        {
+        }
     }
 }
