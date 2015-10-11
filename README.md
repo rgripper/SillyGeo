@@ -1,7 +1,7 @@
 # SillyGeo
 IP geolocation service implementation. 
-It includes implementations for few IP data providers and Sqlite-backed service. (I may add MSSQL and MongoDB stores in the future)
+It includes implementations for a few IP geo data providers and SQlite-backed service. I also plan to add Redis support as soon as there is a Core 5 version.
 
-There is goint to be a tiny demo Web API, automatic provider data loaders and heaps of UNICORNS!!!
+There is going to be a small web demo, automatic provider data loaders and a few unicorns.
 
-It is currently meant to be run on .NET Core 5 (beta :hatching_chick:).
+It targets .NET Core 5.
