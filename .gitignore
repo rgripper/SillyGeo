@@ -234,3 +234,4 @@ $RECYCLE.BIN/
 *.lnk
 *.sqlite
 *.sqlite
+src/SillyGeo.ConsoleDemo/project.lock.json

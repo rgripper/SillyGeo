@@ -29,7 +29,7 @@ namespace SillyGeo.ConsoleDemo
             ConfigureServices(services);
             _serviceProvider = services.BuildServiceProvider();
 
-            _config = new ConfigurationBuilder(AppContext.BaseDirectory).AddJsonFile("config.json").Build();
+            _config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
         }
 
         private void ConfigureServices(IServiceCollection services)
@@ -39,6 +39,8 @@ namespace SillyGeo.ConsoleDemo
 
         public async Task Main(string[] args)
         {
+            var boo = await new GeoNamesContentHelper().GetContentUrlsAsync();
+            boo.Count();
             try
             {
                 var connectionString = _config["Data:DefaultConnection:ConnectionString"];
