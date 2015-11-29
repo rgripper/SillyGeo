@@ -30,7 +30,7 @@ namespace SillyGeo.ConsoleDemo
             {
                 var dumpPage = await client.GetStringAsync(DumpPageUrl);
 
-                var matches = Regex.Matches(dumpPage, @"alt=""\[[^\]]*\]"">\s*<a href=""(?<url>[^""]*)"">[^""]+<\/a>\s*(?<date>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*(?<length>\w+(\.\w+)?)\s+[^<]*<", RegexOptions.Compiled);
+                var matches = Regex.Matches(dumpPage, @"alt=""\[[^\]]*\]"">\s*<a href=""(?<url>[^""]*)"">[^""]+<\/a>\s*(?<date>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s*(?<length>\w+(\.\w+)?)\s+[^<]*<");
                 var cestZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
 
                 return matches.Cast<Match>().Select(x => new ContentFileInfo

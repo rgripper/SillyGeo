@@ -1,6 +1,6 @@
-﻿using Microsoft.Dnx.Runtime;
-using Microsoft.Framework.Configuration;
-using Microsoft.Framework.DependencyInjection;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.PlatformAbstractions;
 using Newtonsoft.Json;
 using SillyGeo.Data;
 using SillyGeo.Data.Providers;
@@ -9,21 +9,20 @@ using SillyGeo.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
-using System.Threading.Tasks;
 using System.Linq;
-using System.Diagnostics;
+using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace SillyGeo.ConsoleDemo
 {
     public class Program
     {
-        private readonly IServiceProvider _serviceProvider;
+        private static readonly IServiceProvider _serviceProvider;
 
-        private readonly IConfiguration _config;
+        private static readonly IConfiguration _config;
 
-        public Program(IApplicationEnvironment appEnvironment)
+        static Program()
         {
             var services = new ServiceCollection();
             ConfigureServices(services);
@@ -32,12 +31,25 @@ namespace SillyGeo.ConsoleDemo
             _config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
         }
 
-        private void ConfigureServices(IServiceCollection services)
+        private static void ConfigureServices(IServiceCollection services)
         {
 
         }
 
-        public async Task Main(string[] args)
+        public static int Main(string[] args)
+        {
+            try
+            {
+                ExecuteAsync(args).GetAwaiter().GetResult();
+                return 0;
+            }
+            catch
+            {
+                return 1;
+            }
+        }
+
+        private static async Task ExecuteAsync(string[] args)
         {
             var boo = await new GeoNamesContentHelper().GetContentUrlsAsync();
             boo.Count();

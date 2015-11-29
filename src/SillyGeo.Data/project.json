@@ -6,21 +6,27 @@
     "projectUrl": "",
     "licenseUrl": "",
 
-    "dependencies": {
-        "Microsoft.CSharp": "4.0.1-beta-23409",
-        "SillyGeo": "1.0.0-*",
-        "Microsoft.Data.Sqlite": "1.0.0-beta8",
-        "Newtonsoft.Json": "8.0.1-beta1",
-        "System.Collections": "4.0.11-beta-23409",
-        "System.Linq": "4.0.1-beta-23409",
-        "System.Net.Primitives": "4.0.11-beta-23409",
-        "System.Runtime": "4.0.21-beta-23409",
-        "System.Runtime.Extensions": "4.0.11-beta-23409",
-        "System.Runtime.Numerics": "4.0.1-beta-23409",
-        "System.Threading": "4.0.11-beta-23409"
-    },
-
     "frameworks": {
-        "dnxcore50": { }
+        "net451": {
+            "dependencies": { },
+            "frameworkAssemblies": {
+                "System.Numerics": "4.0.0.0"
+            }
+        },
+        "dotnet5.4": {
+            "dependencies": {
+                "Microsoft.CSharp": "4.0.1-beta-23516",
+                "System.Collections": "4.0.11-beta-23516",
+                "System.Linq": "4.0.1-beta-23516",
+                "System.Runtime": "4.0.21-beta-23516",
+                "System.Threading": "4.0.11-beta-23516",
+                "System.Runtime.Numerics": "4.0.1-beta-23516"
+            }
+        }
+    },
+    "dependencies": {
+        "Microsoft.Data.Sqlite": "1.0.0-rc1-final",
+        "Newtonsoft.Json": "8.0.1-beta3",
+        "SillyGeo": "1.0.0-*"
     }
 }
